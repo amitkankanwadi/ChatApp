@@ -1,3 +1,10 @@
 <resources>
     <string name="app_name">ChatApp</string>
+
+    <string-array name="names">
+        <item>Mr.</item>
+        <item>Mrs.</item>
+        <item>Dr.</item>
+    </string-array>
+
 </resources>

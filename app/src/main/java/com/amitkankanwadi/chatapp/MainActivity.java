@@ -14,6 +14,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
@@ -27,18 +28,24 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 public class MainActivity extends AppCompatActivity {
 
-    private String name;
+    public static String EmployeeId = "employeeId";
+    public static String EmployeeArbr = "employeeAbr";
+    public static String EmployeeFname = "employeeFname";
+    public static String EmployeeLname = "employeeLname";
+    public static String EmployeeDesig = "employeeDesig";
+    public static String EmployeeBdate = "employeeBdate";
+    public static String EmployeeAdrs = "employeeAdrs";
+
     private ListView listView;
-    private EditText editText;
-    private Button addRoomButton;
-    private ArrayAdapter<String> arrayAdapter;
-    private ArrayList<String> arrayList = new ArrayList<>();
+    private List<Employee> employeeList;
+    Button addEmployeeButton;
 
     private DatabaseReference databaseReference;
 
@@ -47,40 +54,77 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        editText = findViewById(R.id.editText);
-        listView = findViewById(R.id.listView);
-        addRoomButton = findViewById(R.id.addRoom);
+        listView = (ListView) findViewById(R.id.listView);
+        employeeList = new ArrayList<Employee>();
+        addEmployeeButton = (Button) findViewById(R.id.addEmployeeButton);
 
-        arrayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, arrayList);
-        listView.setAdapter(arrayAdapter);
+        databaseReference = FirebaseDatabase.getInstance().getReference().child("Employees");
 
-        databaseReference = FirebaseDatabase.getInstance().getReference().getRoot();    //get the database root
-
-        requestUserName();
-
-        addRoomButton.setOnClickListener(new View.OnClickListener() {
+        listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
-            public void onClick(View v) {
-                Map<String,Object> map = new HashMap<String, Object>();
-                map.put(editText.getText().toString(),"");
-                databaseReference.updateChildren(map);  //Room(map) is added to the root of the database
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                Employee employee = employeeList.get(position);
+                Intent intent = new Intent(MainActivity.this, EmployeeDetails.class);
+                intent.putExtra(EmployeeId, employee.getEmployeeId());
+                intent.putExtra(EmployeeArbr, employee.getAbbreviation());
+                intent.putExtra(EmployeeFname, employee.getFirstName());
+                intent.putExtra(EmployeeLname, employee.getLastName());
+                intent.putExtra(EmployeeDesig, employee.getDesignation());
+                intent.putExtra(EmployeeBdate, employee.getBirthday());
+                intent.putExtra(EmployeeAdrs, employee.getAddress());
+                startActivity(intent);
             }
         });
 
+        // long click on data item to delete
+        listView.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
+            @Override
+            public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
+                final Employee employee = employeeList.get(position);
+
+                new AlertDialog.Builder(MainActivity.this)
+                        .setIcon(android.R.drawable.ic_dialog_alert)
+                        .setTitle("Are you sure?")
+                        .setMessage("Do you want to delete?")
+                        .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                DatabaseReference dref = FirebaseDatabase.getInstance().getReference("Employees").child(employee.getEmployeeId());
+                                dref.removeValue();
+                                Toast.makeText(MainActivity.this, "Data deleted", Toast.LENGTH_LONG).show();
+                            }
+                        })
+                        .setNegativeButton("No",null)
+                        .show();
+                return true;
+            }
+        });
+
+        addEmployeeButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(MainActivity.this, EmployeeDetails.class);
+                startActivity(intent);
+            }
+        });
+
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+
         databaseReference.addValueEventListener(new ValueEventListener() {
             @Override
-            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {  //method to add a node to database root
-                Set<String> set = new HashSet<String>();
-                Iterator i = dataSnapshot.getChildren().iterator();
-
-                while (i.hasNext()) {
-                    set.add(((DataSnapshot)i.next()).getKey());
+            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
+                employeeList.clear();
+                for(DataSnapshot employeeSnapshot: dataSnapshot.getChildren()) {
+                    Employee employee = employeeSnapshot.getValue(Employee.class);
+                    employeeList.add(employee);
                 }
 
-                arrayList.clear();
-                arrayList.addAll(set);
-
-                arrayAdapter.notifyDataSetChanged();
+                EmployeeList adapter = new EmployeeList(MainActivity.this, employeeList);
+                listView.setAdapter(adapter);
             }
 
             @Override
@@ -88,40 +132,5 @@ public class MainActivity extends AppCompatActivity {
 
             }
         });
-
-        listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) { //enter a room on click of listview
-
-                Intent intent = new Intent(getApplicationContext(),NewChat.class);
-                intent.putExtra("room_name",((TextView)view).getText().toString() );
-                intent.putExtra("user_name",name);
-                startActivity(intent);
-            }
-        });
-    }
-
-    private void requestUserName() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Enter name:");
-
-        final EditText inputField = new EditText(this);
-
-        builder.setView(inputField);
-        builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialogInterface, int i) {
-                name = inputField.getText().toString();
-            }
-        });
-
-        builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialogInterface, int i) {
-                dialogInterface.cancel();
-                requestUserName();
-            }
-        });
-        builder.show();
     }
 }
